@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.env*
+!.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+*.wav
+*.mp3
+*.flac
+.DS_Store
