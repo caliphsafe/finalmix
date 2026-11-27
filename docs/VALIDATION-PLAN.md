@@ -19,7 +19,7 @@ This document defines acceptance work, not a claim that all checks have passed. 
 
 Upload a lawful MP3, decode, play original, analyze, render mix/master, compare at matched monitoring loudness, export 24-bit WAV, decode the WAV independently, inspect its metadata and peaks, and confirm a warranted process changes the audio. Repeat on mono and stereo sources, silence, corrupt media, and unsupported formats. Test cancellation and deletion before and during processing.
 
-For local separation, run actual inference using the selected checkpoint, record checkpoint identity, produce four files, check alignment/duration/finite samples, sum stems and measure reconstruction error, then listen for bleed and artifacts. A unit test that mocks a separator is not evidence of working model inference.
+For cloud separation, run actual Modal inference using the selected checkpoint, record checkpoint identity and GPU, produce four private R2 files, check alignment/duration/finite samples, sum stems and measure reconstruction error, then listen for bleed and artifacts. A mocked separator is not evidence of working inference.
 
 ## Music listening validation still required
 
@@ -29,4 +29,4 @@ Tests on synthetic signals establish numerical behavior, not professional music 
 
 ## Interface and privacy
 
-Verify desktop and mobile upload, visible errors, busy/cancel state, actual waveform/seek, version switching, preservation of playback position, export download, keyboard navigation and readable controls. Verify browser mode has no audio-upload network request. Verify local-engine Host, Origin and credential rejection, malformed upload limits, path isolation, cancellation and cleanup. Report limitations in the release notes.
+Verify desktop and mobile direct upload, errors, busy/cancel state, private playback, version switching, preservation of playback position, download, keyboard navigation and readable controls. Verify audio bytes do not traverse Vercel Functions. Verify signed URL expiration, HMAC rejection, malformed upload limits, ownership isolation, cancellation and R2 cleanup. Report limitations in release notes.

@@ -16,7 +16,7 @@ Research date: 2026-11-26. This is an engineering inventory, not commercial clea
 | Uvicorn | BSD-3-Clause — [license](https://github.com/encode/uvicorn/blob/master/LICENSE.md) | Loopback serving. |
 | PyTorch | BSD-style with third-party notices — [license](https://github.com/pytorch/pytorch/blob/main/LICENSE) | Optional model runtime; audit binary package notices. |
 | torchaudio | BSD-2-Clause — [license](https://github.com/pytorch/audio/blob/main/LICENSE) | Optional model dependency. |
-| Demucs code | MIT — [license](https://github.com/facebookresearch/demucs/blob/main/LICENSE) | Optional local integration. |
+| Demucs code | MIT — [license](https://github.com/facebookresearch/demucs/blob/main/LICENSE) | Excluded from the active cloud image until model rights are cleared. |
 | Demucs weights | Unclear per [author's current README](https://github.com/adefossez/demucs#license) | Not commercially cleared by this project; not bundled. |
 | FFmpeg | Usually LGPL-2.1-or-later; selected build components can make it GPL or nonredistributable — [official legal page](https://ffmpeg.org/legal.html) | External user-installed executable. Inspect `ffmpeg -buildconf` and `ffmpeg -L` before distribution. |
 | Spotify Pedalboard | GPL-3.0 — [official repository](https://github.com/spotify/pedalboard) | Evaluated, excluded from this proprietary-oriented foundation. |
@@ -28,4 +28,4 @@ No commercial plugin code, assets, presets, or product UI artwork are included. 
 
 ## Hosting eligibility
 
-[Vercel Hobby](https://vercel.com/docs/plans/hobby) is restricted to personal/noncommercial use. A commercial launch needs an eligible existing plan or separately approved paid infrastructure. This project does not purchase a plan or enable paid audio compute. Browser audio runs on the user's device; the local engine runs on the user's machine. Static hosting traffic may still count against the account's plan quotas.
+[Vercel Hobby](https://vercel.com/docs/plans/hobby) is restricted to personal/noncommercial use. FINAL MIX is being connected to the user's existing Vercel Pro team. Audio bytes bypass Vercel Functions and move directly between the browser, private R2 and Modal.

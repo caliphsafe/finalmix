@@ -1,31 +1,18 @@
-# Architecture
+# FINAL MIX V3 architecture
 
-FINAL MIX separates the interface, browser DSP, and local audio service. The initial release has no paid AI service, cloud audio store, accounts database, payment integration, or training pipeline.
+The browser handles interface state, direct signed uploads, playback, polling and downloads. Vercel authenticates the private owner, signs storage operations, enforces limits and dispatches jobs. R2 stores private assets and JSON manifests. Modal downloads private objects, runs processing, uploads verified results and signs progress callbacks.
 
-## Browser path
+```text
+Browser -> Vercel: authenticate and request signed operation
+Browser -> R2: upload recording directly
+Vercel -> Modal: HMAC-signed job dispatch containing object keys, never credentials
+Modal -> R2: read source and write private mix, master and report
+Modal -> Vercel: HMAC-signed stage completion
+Browser -> Vercel -> R2: short-lived playback or download URL
+```
 
-The Next.js/React/TypeScript interface is statically exported. The browser decodes supported files using its audio implementation. PCM arrays feed standalone TypeScript analysis/processing functions in `src/audio`. A dedicated worker keeps long processing outside the UI thread; terminating the worker cancels its computation. The original audio remains independent from rendered versions.
+Large audio never traverses a Vercel Function. R2 credentials and Modal secrets stay server-side. Presigned URLs expire in ten minutes or less.
 
-The analysis contract contains real loudness, peak, RMS, crest, correlation, waveform, spectral-band and spectrum data; unavailable values are nullable. Processing returns separate mix and master buffers, before/after analysis, a decision log, validated settings, and quality-control warnings. WAV serialization is independent of playback. Browser format decoding and sample-rate behavior depend on the browser; unsupported files must report a decoding error rather than silently convert elsewhere.
+The personal-use milestone uses owner-scoped JSON manifests in R2. This removes the database/account dependency without making jobs ephemeral. Supabase is deferred until multi-user accounts, relational albums, credits and administrative reporting require PostgreSQL and RLS.
 
-## Local path
-
-`engine` is an independent Python service using NumPy/SciPy and external FFmpeg/FFprobe. It validates media, measures the input, performs bounded stereo processing, renders exports, and remeasures them. Optional model integration operates locally. The same service serves the exported frontend so desktop users need not connect an HTTPS-hosted page to an HTTP loopback service.
-
-The authoritative endpoint contract is [engine/API.md](../engine/API.md). The engine must bind only to loopback, reject unexpected Host/Origin values, require its local session credential, limit jobs and uploads, generate internal file names, and expose only known job outputs. Do not put the local token into the public Vercel deployment, open the port to a LAN, or add permissive CORS to work around browser restrictions.
-
-## Processing boundaries
-
-| Module | Responsibility | Does not establish |
-|---|---|---|
-| Decoder | Validate and turn media into PCM | Recovery of lost MP3 information |
-| Analysis | Measured signal properties | Artistic intent or professional quality |
-| Decision engine | Bounded, explainable choices | A universally ideal mix |
-| Mixing | Tone, dynamics, source balance where available | Perfect stem recovery |
-| Mastering | Final level, headroom and export preparation | Identical perceived quality across all listening systems |
-| Quality control | Numerical integrity and warnings | Absence of all audible artifacts |
-| Comparison | Playback and monitoring compensation | Changes to the downloaded master |
-
-## State and extension points
-
-Parameter snapshots and rendered versions support reversible revisions. Saved preferences are explicit settings, not learned models. Future cloud workers can implement the same job contract, but need authenticated storage, quotas, job isolation, user consent and spending approval before routing audio externally. Album sequencing, shared accounts, paid processing, profile marketplaces and DAW plugins are future products, not hidden dependencies of this release.
+Discovery, Separation, Mix, Reference, Master, Review and The Engineer remain the target. Milestone 1 deploys measured Discovery, conservative stereo Mix, Master and Review. Unsupported engines are not simulated. The measured Python DSP is reused by the cloud image. Browser DSP remains archived as test evidence and is excluded from the V3 execution path.

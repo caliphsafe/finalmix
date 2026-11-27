@@ -1,5 +1,0 @@
-# Optional experimental model environment; install ONLY after reviewing model rights.
-# Use Python 3.11. A separate torch/torchaudio pair avoids latest-version loader incompatibility.
-torch==2.5.1
-torchaudio==2.5.1
-demucs==4.0.1
