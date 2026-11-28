@@ -1,0 +1,30 @@
+{
+  "name": "final-mix",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/cloud/*.test.ts",
+    "start": "next start",
+    "ci": "pnpm typecheck && pnpm test && pnpm build"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.935.0",
+    "@aws-sdk/s3-request-presigner": "^3.935.0",
+    "next": "16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "lucide-react": "0.468.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tsx": "^4.20.0"
+  }
+}

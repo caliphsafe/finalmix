@@ -1,0 +1,36 @@
+name: Verify FINAL MIX
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop/v3-cloud]
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm ci
+
+  python-audio:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: pip install -r audio_engine/requirements.lock
+      - run: pip install -r cloud/requirements.txt httpx==0.28.1
+      - run: python -m unittest discover -s tests/python -v
