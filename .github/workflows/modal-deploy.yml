@@ -37,7 +37,7 @@ jobs:
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
-      - name: Verify private cloud connectivity
+      - name: Diagnose R2 operations and signed callback independently
         run: modal run -m cloud.modal_app::verify_connectivity
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}

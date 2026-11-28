@@ -217,32 +217,86 @@ async def cancel(request: Request):
 @app.function(image=image, secrets=[r2_secret, worker_secret], cpu=0.25,
               memory=256, timeout=90, max_containers=1, retries=0)
 def connectivity_check():
-    """Small authenticated infrastructure probe; deletes only its own test object."""
+    """Return redacted, independent operation results without reading customer objects."""
     import uuid
+    import re
+    import boto3
+    from botocore.config import Config
     import requests
-    client = _r2()
     bucket = os.environ["R2_BUCKET"]
-    key = f"diagnostics/{uuid.uuid4()}/connectivity.txt"
-    marker = b"FINAL MIX private storage connectivity check"
-    try:
-        client.put_object(Bucket=bucket, Key=key, Body=marker)
-        received = client.get_object(Bucket=bucket, Key=key)["Body"].read()
-        if received != marker:
-            raise RuntimeError("R2 readback did not match")
-    finally:
-        client.delete_object(Bucket=bucket, Key=key)
+    results = {"configuration": {
+        "accountIdIs32Hex": bool(re.fullmatch(r"[a-fA-F0-9]{32}", os.environ["R2_ACCOUNT_ID"])),
+        "accessKeyIdIs32Hex": bool(re.fullmatch(r"[a-fA-F0-9]{32}", os.environ["R2_ACCESS_KEY_ID"])),
+        "secretAccessKeyIs64Hex": bool(re.fullmatch(r"[a-fA-F0-9]{64}", os.environ["R2_SECRET_ACCESS_KEY"])),
+        "bucketMatchesExpected": bucket == "finalmix-audio",
+        "valuesHaveSurroundingWhitespace": any(os.environ[k] != os.environ[k].strip() for k in
+            ("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET")),
+    }}
+    for name, options in (("sdkDefaults", {}), ("explicitS3Compatibility", {
+        "signature_version": "s3v4", "s3": {"addressing_style": "path"},
+        "request_checksum_calculation": "when_required", "response_checksum_validation": "when_required",
+    })):
+        client = boto3.client("s3", endpoint_url=f"https://{os.environ['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com",
+            region_name="auto", aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
+            aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
+            config=Config(connect_timeout=5, read_timeout=5, retries={"total_max_attempts": 1}, **options))
+        results[name] = _storage_probe(client, bucket, f"diagnostics/{uuid.uuid4()}/connectivity.txt")
     body = json.dumps({"jobId": str(uuid.uuid4()), "state": "queued",
                        "stage": "Connectivity probe", "progress": 0}, separators=(",", ":"))
     timestamp = str(int(time.time()))
-    response = requests.post(os.environ["VERCEL_PROGRESS_URL"], data=body,
-        headers={"content-type": "application/json", "x-finalmix-timestamp": timestamp,
-                 "x-finalmix-signature": _signature(body, timestamp)}, timeout=20)
-    if response.status_code != 404 or response.json().get("error") != "Job not found":
-        raise RuntimeError(f"Vercel signed callback probe failed (HTTP {response.status_code})")
-    return {"r2WriteReadDelete": True, "vercelSignatureAndStorageRead": True}
+    try:
+        response = requests.post(os.environ["VERCEL_PROGRESS_URL"], data=body,
+            headers={"content-type": "application/json", "x-finalmix-timestamp": timestamp,
+                     "x-finalmix-signature": _signature(body, timestamp)}, timeout=10)
+        try:
+            error = response.json().get("error", "")
+        except ValueError:
+            error = ""
+        results["vercelCallback"] = {"httpStatus": response.status_code,
+            "signatureAndStorageReadPassed": response.status_code == 404 and error == "Job not found",
+            "storageAccessDenied": "Access Denied" in error or "AccessDenied" in error,
+            "invalidSignature": response.status_code == 401}
+    except requests.RequestException:
+        results["vercelCallback"] = {"networkFailure": True}
+    return results
+
+
+def _storage_probe(client, bucket, key):
+    """Only expose error codes/statuses. Preserve the first failure and never delete uncreated data."""
+    results = {}
+    def check(name, operation):
+        try:
+            operation()
+            results[name] = {"ok": True}
+            return True
+        except Exception as exc:
+            response = getattr(exc, "response", {})
+            code = str(response.get("Error", {}).get("Code", type(exc).__name__))
+            # Do not include exception messages, request URLs, keys, or credentials.
+            results[name] = {"ok": False, "code": code[:80],
+                "httpStatus": response.get("ResponseMetadata", {}).get("HTTPStatusCode")}
+            return False
+    check("headBucket", lambda: client.head_bucket(Bucket=bucket))
+    check("listEmptyProbePrefix", lambda: client.list_objects_v2(Bucket=bucket, Prefix=key, MaxKeys=1))
+    check("readMissingProbe", lambda: client.get_object(Bucket=bucket, Key=key))
+    marker = b"FINAL MIX private storage connectivity check"
+    if check("putObject", lambda: client.put_object(Bucket=bucket, Key=key, Body=marker)):
+        def readback():
+            if client.get_object(Bucket=bucket, Key=key)["Body"].read() != marker:
+                raise ValueError("Readback mismatch")
+        try:
+            check("readback", readback)
+        finally:
+            check("deleteProbe", lambda: client.delete_object(Bucket=bucket, Key=key))
+    return results
 
 
 @app.local_entrypoint()
 def verify_connectivity():
     # Runs in GitHub Actions; the actual probe executes remotely in Modal.
-    print(json.dumps(connectivity_check.remote()))
+    result = connectivity_check.remote()
+    print("FINALMIX_DIAGNOSTIC=" + json.dumps(result))
+    if not (result["sdkDefaults"].get("readback", {}).get("ok") and
+            result["sdkDefaults"].get("deleteProbe", {}).get("ok") and
+            result["vercelCallback"].get("signatureAndStorageReadPassed")):
+        raise RuntimeError("Cloud connectivity incomplete; see redacted FINALMIX_DIAGNOSTIC results")
