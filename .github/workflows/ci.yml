@@ -32,4 +32,5 @@ jobs:
           python-version: '3.12'
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pip install -r audio_engine/requirements.lock
+      - run: pip install -r cloud/requirements.txt httpx==0.28.1
       - run: python -m unittest discover -s tests/python -v

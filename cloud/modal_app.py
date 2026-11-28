@@ -4,8 +4,6 @@ All audio bytes move between Modal and private R2. Vercel submits only object ke
 The first operational milestone implements measured stereo mixing/mastering. Unsupported separation
 strategies fail explicitly; no stem output is simulated.
 """
-from __future__ import annotations
-
 import hashlib
 import hmac
 import json
@@ -15,6 +13,7 @@ import time
 from pathlib import Path
 
 import modal
+from fastapi import Request
 
 app = modal.App("final-mix-v3")
 
@@ -171,14 +170,19 @@ def process_job(payload: dict):
 
 
 def _verify_request(request_body: bytes, timestamp: str | None, supplied: str | None):
-    if not timestamp or not supplied or abs(time.time() - int(timestamp)) > 300:
+    if not timestamp or not supplied:
         return False
-    return hmac.compare_digest(_signature(request_body.decode(), timestamp), supplied)
+    try:
+        if abs(time.time() - int(timestamp)) > 300:
+            return False
+        return hmac.compare_digest(_signature(request_body.decode(), timestamp), supplied)
+    except (ValueError, UnicodeError, TypeError):
+        return False
 
 
 @app.function(image=image, secrets=[worker_secret], timeout=60, max_containers=2)
 @modal.fastapi_endpoint(method="POST")
-async def submit(request):
+async def submit(request: Request):
     from fastapi import HTTPException
     body = await request.body()
     if not _verify_request(body, request.headers.get("x-finalmix-timestamp"), request.headers.get("x-finalmix-signature")):
@@ -190,7 +194,7 @@ async def submit(request):
 
 @app.function(image=image, secrets=[worker_secret], timeout=60, max_containers=2)
 @modal.fastapi_endpoint(method="POST")
-async def cancel(request):
+async def cancel(request: Request):
     from fastapi import HTTPException
     body = await request.body()
     if not _verify_request(body, request.headers.get("x-finalmix-timestamp"), request.headers.get("x-finalmix-signature")):
@@ -200,3 +204,37 @@ async def cancel(request):
     if call_id:
         modal.FunctionCall.from_id(call_id).cancel()
     return {"accepted": bool(call_id)}
+
+
+@app.function(image=image, secrets=[r2_secret, worker_secret], cpu=0.25,
+              memory=256, timeout=90, max_containers=1, retries=0)
+def connectivity_check():
+    """Small authenticated infrastructure probe; deletes only its own test object."""
+    import uuid
+    import requests
+    client = _r2()
+    bucket = os.environ["R2_BUCKET"]
+    key = f"diagnostics/{uuid.uuid4()}/connectivity.txt"
+    marker = b"FINAL MIX private storage connectivity check"
+    try:
+        client.put_object(Bucket=bucket, Key=key, Body=marker)
+        received = client.get_object(Bucket=bucket, Key=key)["Body"].read()
+        if received != marker:
+            raise RuntimeError("R2 readback did not match")
+    finally:
+        client.delete_object(Bucket=bucket, Key=key)
+    body = json.dumps({"jobId": str(uuid.uuid4()), "state": "queued",
+                       "stage": "Connectivity probe", "progress": 0}, separators=(",", ":"))
+    timestamp = str(int(time.time()))
+    response = requests.post(os.environ["VERCEL_PROGRESS_URL"], data=body,
+        headers={"content-type": "application/json", "x-finalmix-timestamp": timestamp,
+                 "x-finalmix-signature": _signature(body, timestamp)}, timeout=20)
+    if response.status_code != 404 or response.json().get("error") != "Job not found":
+        raise RuntimeError(f"Vercel signed callback probe failed (HTTP {response.status_code})")
+    return {"r2WriteReadDelete": True, "vercelSignatureAndStorageRead": True}
+
+
+@app.local_entrypoint()
+def verify_connectivity():
+    # Runs in GitHub Actions; the actual probe executes remotely in Modal.
+    print(json.dumps(connectivity_check.remote()))

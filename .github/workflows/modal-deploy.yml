@@ -2,6 +2,13 @@ name: Deploy Modal worker
 
 on:
   workflow_dispatch:
+  push:
+    branches: [develop/v3-cloud]
+    paths: [.github/workflows/modal-deploy.yml]
+
+concurrency:
+  group: modal-production-deploy
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -9,6 +16,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment: modal-production
     steps:
       - uses: actions/checkout@v4
@@ -16,7 +24,19 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r cloud/requirements.txt
+      - name: Check deployment credentials
+        run: |
+          test -n "$MODAL_TOKEN_ID" || { echo 'Missing MODAL_TOKEN_ID repository secret'; exit 1; }
+          test -n "$MODAL_TOKEN_SECRET" || { echo 'Missing MODAL_TOKEN_SECRET repository secret'; exit 1; }
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
       - run: modal deploy cloud/modal_app.py
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      - name: Verify private cloud connectivity
+        run: modal run cloud/modal_app.py::verify_connectivity
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
