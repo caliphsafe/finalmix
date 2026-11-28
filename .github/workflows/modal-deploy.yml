@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [develop/v3-cloud]
-    paths: [.github/workflows/modal-deploy.yml]
+    paths: [.github/workflows/modal-deploy.yml, cloud/requirements.txt]
 
 concurrency:
   group: modal-production-deploy

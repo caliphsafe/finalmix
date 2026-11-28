@@ -180,9 +180,7 @@ def _verify_request(request_body: bytes, timestamp: str | None, supplied: str | 
         return False
 
 
-@app.function(image=image, secrets=[worker_secret], timeout=60, max_containers=2)
-@modal.fastapi_endpoint(method="POST")
-async def submit(request: Request):
+async def submit_http(request: Request):
     from fastapi import HTTPException
     body = await request.body()
     if not _verify_request(body, request.headers.get("x-finalmix-timestamp"), request.headers.get("x-finalmix-signature")):
@@ -192,9 +190,7 @@ async def submit(request: Request):
     return {"accepted": True, "callId": call.object_id}
 
 
-@app.function(image=image, secrets=[worker_secret], timeout=60, max_containers=2)
-@modal.fastapi_endpoint(method="POST")
-async def cancel(request: Request):
+async def cancel_http(request: Request):
     from fastapi import HTTPException
     body = await request.body()
     if not _verify_request(body, request.headers.get("x-finalmix-timestamp"), request.headers.get("x-finalmix-signature")):
@@ -204,6 +200,18 @@ async def cancel(request: Request):
     if call_id:
         modal.FunctionCall.from_id(call_id).cancel()
     return {"accepted": bool(call_id)}
+
+
+@app.function(image=image, secrets=[worker_secret], timeout=60, max_containers=2)
+@modal.fastapi_endpoint(method="POST")
+async def submit(request: Request):
+    return await submit_http(request)
+
+
+@app.function(image=image, secrets=[worker_secret], timeout=60, max_containers=2)
+@modal.fastapi_endpoint(method="POST")
+async def cancel(request: Request):
+    return await cancel_http(request)
 
 
 @app.function(image=image, secrets=[r2_secret, worker_secret], cpu=0.25,

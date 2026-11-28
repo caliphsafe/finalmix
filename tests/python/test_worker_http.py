@@ -1,13 +1,12 @@
 """Exercise FastAPI request binding without launching cloud compute."""
 import os
-import inspect
 import time
 import unittest
 from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from cloud.modal_app import submit, cancel, _signature
+from cloud.modal_app import submit_http, cancel_http, _signature
 
 
 class WorkerHttpTests(unittest.TestCase):
@@ -15,8 +14,8 @@ class WorkerHttpTests(unittest.TestCase):
         self.secret = patch.dict(os.environ, {"MODAL_WEBHOOK_SECRET": "test-only-not-a-real-secret"})
         self.secret.start()
         app = FastAPI()
-        app.post("/submit")(inspect.unwrap(submit.get_raw_f()))
-        app.post("/cancel")(inspect.unwrap(cancel.get_raw_f()))
+        app.post("/submit")(submit_http)
+        app.post("/cancel")(cancel_http)
         self.client = TestClient(app)
 
     def tearDown(self):
